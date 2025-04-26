@@ -22,7 +22,7 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
-public class SnakeGameGUI extends Application {
+public class SnakeGameGUI extends Application implements GameObserver {
 
     private static final int TILE_SIZE = 40; // Dimensione di ogni cella
     private static final int WIDTH = 15; // Numero di colonne
