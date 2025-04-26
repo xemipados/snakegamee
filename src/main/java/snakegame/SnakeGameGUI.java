@@ -94,9 +94,6 @@ public class SnakeGameGUI extends Application implements GameObserver {
         Platform.runLater(() -> {
             showPoints(game);
             drawGame(game);
-            if (game.isGameOver()) {
-                showGameOver();
-            }
         });
     }
 
@@ -152,6 +149,7 @@ public class SnakeGameGUI extends Application implements GameObserver {
         // Riempie l'interno dell'area di gioco con un colore di sfondo
         gc.setFill(Color.web("#a1a940"));
         gc.fillRoundRect(borderThickness, TILE_SIZE + 10 + borderThickness, width, height, arcSize, arcSize);
+
     }
 
     private void showCountdown() {
@@ -247,7 +245,7 @@ public class SnakeGameGUI extends Application implements GameObserver {
 
             Game game = controller.getGame(); // Ottieni il riferimento al gioco dal controller
 
-            while (!game.isGameOver()) {
+            while (!Thread.interrupted()) { // Cambiato da !game.isGameOver()
                 now = System.nanoTime();
                 delta += (now - previousTime) / duration;
                 previousTime = now;
@@ -259,12 +257,18 @@ public class SnakeGameGUI extends Application implements GameObserver {
                     update = update % drawUpdate;
                     delta--;
                 }
+
+                // Se il gioco è terminato, esci dal ciclo
+                if (game.isGameOver()) {
+                    break;
+                }
             }
         }).start();
     }
 
     private void initializeGame() {
         controller.initializeGame();
+        controller.getGame().addObserver(this);
     }
 
     private void drawGame(Game game) {
@@ -405,119 +409,82 @@ public class SnakeGameGUI extends Application implements GameObserver {
         pause.play(); // Avvia la pausa per poi procedere con il fade-out
     }
 
-}
+    @Override
+    public void onFoodEaten(int foodEaten, int score) {
+        // Qui puoi aggiungere effetti o animazioni quando viene mangiato il cibo
+        System.out.println("Food eaten! Score: " + score);
 
-class Game {
+        // Puoi aggiungere un effetto visivo temporaneo, come un'animazione veloce
+        // o un breve flash del punteggio
+    }
 
-    public static final int DIRECTION_NONE = 0, DIRECTION_RIGHT = 1, DIRECTION_LEFT = -1, DIRECTION_UP = 2,
-            DIRECTION_DOWN = -2;
-    private Snake snake;
-    private Board board;
-    private int direction;
-    private boolean gameOver;
-    private long startTime;
-    private int foodEaten;
-    private static final int WIDTH = 15; // cols
-    private static final int HEIGHT = 15; // rows
+    @Override
+    public void onGameOver(int finalScore) {
+        // Usa Platform.runLater perché questo metodo potrebbe essere
+        // chiamato da un thread diverso da quello JavaFX
+        Platform.runLater(() -> {
+            System.out.println("Game Over! Final Score: " + finalScore);
+            showGameOver();
+        });
+    }
 
-    public void update() {
-        if (!gameOver) {
-            if (direction != DIRECTION_NONE) {
-                // Get the next cell based on the current direction
-                Cell nextCell = getNextCell(snake.getHead());
+    @Override
+    public void onMove() {
+        // Questo metodo viene chiamato ad ogni movimento del serpente
+        // Puoi inserire qui eventuali effetti di movimento o suoni
+        // System.out.println("Snake moved");
+    }
 
-                if (snake.checkCrash(nextCell) || nextCell == null) {
-                    // Snake crashed into itself
-                    setDirection(DIRECTION_NONE);
-                    gameOver = true;
-                } else {
-                    if (nextCell.getCellType() == CellType.FOOD) {
-                        // Snake eats food
-                        snake.grow(nextCell);
-                        board.generateFood(); // new food!!
-                        foodEaten++;
-                    } else {
-                        // Move snake to the next cell
-                        snake.move(nextCell);
-                    }
-                }
+    private Pane pauseOverlay;
+
+    public void showPauseOverlay() {
+        if (pauseOverlay == null) {
+            createPauseOverlay();
+        }
+
+        Platform.runLater(() -> {
+            Pane root = (Pane) primaryStage.getScene().getRoot();
+            if (!root.getChildren().contains(pauseOverlay)) {
+                root.getChildren().add(pauseOverlay);
             }
+            pauseOverlay.setVisible(true);
+        });
+    }
+
+    public void hidePauseOverlay() {
+        if (pauseOverlay != null) {
+            Platform.runLater(() -> {
+                pauseOverlay.setVisible(false);
+            });
         }
     }
 
-    // mi sposto = nuova cella = nuova posizione
-    private Cell getNextCell(Cell currentHead) {
-        int newRow = currentHead.getRow();
-        int newCol = currentHead.getCol();
+    private void createPauseOverlay() {
+        pauseOverlay = new Pane();
+        pauseOverlay.setPrefSize(WIDTH * TILE_SIZE + 20, HEIGHT * TILE_SIZE + TILE_SIZE + 20);
 
-        switch (direction) {
-            case DIRECTION_UP:
-                newRow--;
-                break;
-            case DIRECTION_DOWN:
-                newRow++;
-                break;
-            case DIRECTION_LEFT:
-                newCol--;
-                break;
-            case DIRECTION_RIGHT:
-                newCol++;
-                break;
-        }
+        javafx.scene.shape.Rectangle rect = new javafx.scene.shape.Rectangle(
+                WIDTH * TILE_SIZE + 20,
+                HEIGHT * TILE_SIZE + TILE_SIZE + 20);
+        rect.setFill(Color.rgb(68, 84, 20, 0.7)); // Colore con trasparenza
 
-        if (newRow < 0 || newRow >= HEIGHT || newCol < 0 || newCol >= WIDTH) {
-            return null; // Out of bounds, causing a crash
-        }
+        Label pauseLabel = new Label("PAUSA");
+        pauseLabel.setFont(javafx.scene.text.Font.font("Monospaced", javafx.scene.text.FontWeight.BOLD, 60));
+        pauseLabel.setTextFill(Color.rgb(208, 208, 88, 0.9));
 
-        return board.getCells()[newRow][newCol];
-    }
+        // Testo istruzioni
+        Label instructionLabel = new Label("Premi P o SPAZIO per continuare");
+        instructionLabel.setFont(javafx.scene.text.Font.font("Monospaced", javafx.scene.text.FontWeight.BOLD, 20));
+        instructionLabel.setTextFill(Color.rgb(208, 208, 88, 0.9));
 
-    public Game(Snake snake, Board board) {
-        this.snake = snake;
-        this.board = board;
-        this.startTime = System.currentTimeMillis(); // Imposta l'inizio della partita
-        this.foodEaten = 0; // Inizializza il numero di cibi mangiati
-        this.direction = DIRECTION_NONE;
-    }
+        // Contenitore per centrare le etichette
+        VBox vbox = new VBox(20, pauseLabel, instructionLabel);
+        vbox.setAlignment(Pos.CENTER);
+        vbox.setLayoutX((WIDTH * TILE_SIZE + 20) / 2 - 180);
+        vbox.setLayoutY((HEIGHT * TILE_SIZE + TILE_SIZE + 20) / 2 - 70);
 
-    public Snake getSnake() {
-        return snake;
-    }
-
-    public void setSnake(Snake snake) {
-        this.snake = snake;
-    }
-
-    public Board getBoard() {
-        return board;
-    }
-
-    public void setBoard(Board board) {
-        this.board = board;
-    }
-
-    public boolean isGameOver() {
-        return gameOver;
-    }
-
-    public void setGameOver(boolean gameOver) {
-        this.gameOver = gameOver;
-    }
-
-    public int getDirection() {
-        return direction;
-    }
-
-    public void setDirection(int direction) {
-        this.direction = direction;
-    }
-
-    public int getFoodEaten() {
-        return foodEaten;
-    }
-
-    public long getElapsedTime() {
-        return System.currentTimeMillis() - startTime;
+        pauseOverlay.getChildren().addAll(rect, vbox);
+        pauseOverlay.setVisible(false);
     }
 
 }

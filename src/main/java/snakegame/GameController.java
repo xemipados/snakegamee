@@ -20,9 +20,23 @@ public class GameController {
     }
 
     public void handleKeyPress(KeyCode key) {
-        if (game == null || game.isGameOver())
+        if (game == null)
             return;
 
+        if (key == KeyCode.P || key == KeyCode.SPACE) {
+            game.togglePause();
+            if (game.isPaused()) {
+                view.showPauseOverlay();
+            } else {
+                view.hidePauseOverlay();
+            }
+            return;
+        }
+
+        if (game.isGameOver() || game.isPaused())
+            return;
+
+        // Resto del codice esistente per gestire le direzioni
         if (key == KeyCode.UP && game.getDirection() != Game.DIRECTION_DOWN) {
             game.setDirection(Game.DIRECTION_UP);
         } else if (key == KeyCode.DOWN && game.getDirection() != Game.DIRECTION_UP) {
