@@ -1,3 +1,4 @@
+// 3. Aggiorniamo la classe Game per utilizzare il pattern State
 package snakegame;
 
 import java.util.ArrayList;
@@ -9,14 +10,92 @@ public class Game implements GameObservable {
     private Snake snake;
     private Board board;
     private int direction;
-    private boolean gameOver;
     private long startTime;
     private int foodEaten;
     private static final int WIDTH = 15; // cols
     private static final int HEIGHT = 15; // rows
 
+    // Modifica: aggiungiamo lo stato corrente invece di usare variabili booleane
+    private GameState currentState;
+
     private List<GameObserver> observers = new ArrayList<>();
 
+    public Game(Snake snake, Board board) {
+        this.snake = snake;
+        this.board = board;
+        this.startTime = System.currentTimeMillis();
+        this.foodEaten = 0;
+        this.direction = DIRECTION_NONE;
+
+        // Inizializziamo con lo stato ReadyState
+        this.currentState = new ReadyState();
+        this.currentState.enterState(this);
+    }
+
+    // Nuovo metodo per cambiare stato
+    public void changeState(GameState newState) {
+        if (currentState != null) {
+            currentState.exitState(this);
+        }
+        currentState = newState;
+        currentState.enterState(this);
+    }
+
+    // Metodo per il toggle della pausa modificato
+    public void togglePause() {
+        if (currentState.isPaused()) {
+            // Se siamo in pausa, torniamo allo stato precedente
+            GameState previousState = ((PausedState) currentState).getPreviousState();
+            changeState(previousState);
+        } else if (!currentState.isGameOver()) {
+            // Se non siamo in pausa e non è game over, andiamo in pausa
+            changeState(new PausedState(currentState));
+        }
+    }
+
+    // Aggiorniamo il metodo update per delegare al currentState
+    public void update() {
+        currentState.update(this);
+    }
+
+    // Nuovo metodo per gestire l'input
+    public void handleInput(int newDirection) {
+        currentState.handleInput(this, newDirection);
+    }
+
+    // Metodo per incrementare il cibo mangiato
+    public void incrementFoodEaten() {
+        this.foodEaten++;
+    }
+
+    // Metodo utility che viene usato da PlayingState
+    public Cell getNextCell(Cell currentHead) {
+        int newRow = currentHead.getRow();
+        int newCol = currentHead.getCol();
+
+        switch (direction) {
+            case DIRECTION_UP:
+                newRow--;
+                break;
+            case DIRECTION_DOWN:
+                newRow++;
+                break;
+            case DIRECTION_LEFT:
+                newCol--;
+                break;
+            case DIRECTION_RIGHT:
+                newCol++;
+                break;
+        }
+
+        if (newRow < 0 || newRow >= HEIGHT || newCol < 0 || newCol >= WIDTH) {
+            return null; // Out of bounds, causing a crash
+        }
+
+        return board.getCells()[newRow][newCol];
+    }
+
+    // Implementazione GameObservable
     @Override
     public void addObserver(GameObserver observer) {
         observers.add(observer);
@@ -48,75 +127,7 @@ public class Game implements GameObservable {
         }
     }
 
-    public void update() {
-        if (!gameOver && !paused) {
-            if (direction != DIRECTION_NONE) {
-                Cell nextCell = getNextCell(snake.getHead());
-
-                if (snake.checkCrash(nextCell) || nextCell == null) {
-                    setDirection(DIRECTION_NONE);
-                    gameOver = true;
-                } else {
-                    if (nextCell.getCellType() == CellType.FOOD) {
-                        snake.grow(nextCell);
-                        board.generateFood();
-                        foodEaten++;
-                    } else {
-                        snake.move(nextCell);
-                    }
-                }
-            }
-        }
-    }
-
-    // mi sposto = nuova cella = nuova posizione
-    private Cell getNextCell(Cell currentHead) {
-        // Codice esistente invariato
-        int newRow = currentHead.getRow();
-        int newCol = currentHead.getCol();
-
-        switch (direction) {
-            case DIRECTION_UP:
-                newRow--;
-                break;
-            case DIRECTION_DOWN:
-                newRow++;
-                break;
-            case DIRECTION_LEFT:
-                newCol--;
-                break;
-            case DIRECTION_RIGHT:
-                newCol++;
-                break;
-        }
-
-        if (newRow < 0 || newRow >= HEIGHT || newCol < 0 || newCol >= WIDTH) {
-            return null; // Out of bounds, causing a crash
-        }
-
-        return board.getCells()[newRow][newCol];
-    }
-
-    private boolean paused = false;
-
-    // E questi metodi:
-    public boolean isPaused() {
-        return paused;
-    }
-
-    public void togglePause() {
-        this.paused = !this.paused;
-    }
-
-    public Game(Snake snake, Board board) {
-        this.snake = snake;
-        this.board = board;
-        this.startTime = System.currentTimeMillis(); // Imposta l'inizio della partita
-        this.foodEaten = 0; // Inizializza il numero di cibi mangiati
-        this.direction = DIRECTION_NONE;
-    }
-
-    // Metodi getter e setter esistenti...
+    // Metodi getter e setter
     public Snake getSnake() {
         return snake;
     }
@@ -134,11 +145,11 @@ public class Game implements GameObservable {
     }
 
     public boolean isGameOver() {
-        return gameOver;
+        return currentState.isGameOver();
     }
 
-    public void setGameOver(boolean gameOver) {
-        this.gameOver = gameOver;
+    public boolean isPaused() {
+        return currentState.isPaused();
     }
 
     public int getDirection() {

@@ -428,11 +428,11 @@ public class SnakeGameGUI extends Application implements GameObserver {
         });
     }
 
+    // Questo metodo viene chiamato ad ogni movimento del serpente
     @Override
     public void onMove() {
-        // Questo metodo viene chiamato ad ogni movimento del serpente
-        // Puoi inserire qui eventuali effetti di movimento o suoni
-        // System.out.println("Snake moved");
+
+        System.out.println("Snake moved");
     }
 
     private Pane pauseOverlay;
